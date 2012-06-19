@@ -1,7 +1,19 @@
 (ns syve.fonts.core-test
-  (:use clojure.test
-        syve.fonts.core))
+  (:use [clojure test repl pprint reflect]
+        syve.fonts.core
+        clojure.java.javadoc)
+  (:require [clojure.java.io :as io])
+  (:import [java.awt GraphicsEnvironment Font]
+           [javax.imageio ImageIO]))
 
-(deftest a-test
-  (testing "FIXME, I fail."
-    (is (= 0 1))))
+(defn get-fonts
+  ([size]
+     (let [size (float size)]
+       (map #(.deriveFont % size) (get-fonts))))
+  ([]
+     (seq (.getAllFonts (GraphicsEnvironment/getLocalGraphicsEnvironment)))))
+
+
+(defn write-image
+  [img filename]
+  (ImageIO/write img "png" (io/as-file filename)))
