@@ -22,7 +22,6 @@
     (when anti-alias?
       (.setRenderingHint gfx RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON))
 
-
     (let [metrics (.getFontMetrics gfx)]
       {:width  (max 1 (.charWidth metrics c))
        :height (if (<= (.getHeight metrics) 0) (.getSize font) (.getHeight metrics))})))
@@ -44,11 +43,20 @@
 
       img)))
 
+(defmacro debug
+  [form]
+  `(let [res# ~form]
+     (println '~form "=>" res#)
+     res#))
+
 (defn create-render-cache
   "Render all the characters into an image and return that image."
   [font chars & anti-alias?]
-  (let [width render-cache-width
-        height render-cache-height
+  (let [{width :width, height :height} (reduce (fn [{w1 :width, h1 :height}
+                                                   {w2 :width, h2 :height}]
+                                                 {:width (+ w1 w2)
+                                                  :height (max h1 h2)})
+                                               (map #(char-size font % anti-alias?) chars))
         img (BufferedImage. width height  BufferedImage/TYPE_INT_ARGB)
         gfx (.getGraphics img)]
 
@@ -58,27 +66,12 @@
 
     (loop [char (char-image font (first (seq chars)) anti-alias?)
            chars (rest (seq chars))
-           row-height 0, x-pos 0, y-pos 0]
-      (cond
-       (nil? char)
-       'done
+           x-pos 0]
 
-       (>= (+ x-pos (.getWidth char)) width)
-       (do
-         (.drawImage gfx char 0 (+ y-pos row-height) nil)
-         (recur (char-image font (first chars) anti-alias?)
-                (rest chars)
-                (max row-height (.getHeight char))
-                (.getWidth char)
-                (+ y-pos row-height)))
-
-       :else
-       (do
-         (.drawImage gfx char x-pos y-pos nil)
-         (recur (char-image font (first chars) anti-alias?)
-                (rest chars)
-                (max row-height (.getHeight char))
-                (+ x-pos (.getWidth char))
-                y-pos))))
+      (when-not (nil? char)
+        (.drawImage gfx char x-pos 0 nil)
+        (recur (char-image font (first chars) anti-alias?)
+               (rest chars)
+               (+ x-pos (.getWidth char)))))
 
     img))
