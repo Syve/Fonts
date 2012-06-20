@@ -5,14 +5,24 @@
             Graphics2D RenderingHints
             Color]))
 
-(def render-cache-width 512)
-(def render-cache-height 512)
-
-(defprotocol IFont
+(defprotocol AFont
   (width [this str] "Get the rendered width of the given string.")
   (height [this str] "Get the rendered height of the given string.")
   (line-height [this] "Get the max height of any line drawn by this font.")
   (render ^BufferedImage [this s] "Render the given string into a BufferedImage"))
+
+(defprotocol ARenderCache
+  "Provide a mechanism to generate the image of a rendered char.
+
+   NOTE: Each ARenderCache is specific to a given font."
+  (get-char [this c] "Return an image of the given char."))
+
+(defn make-buffered-image-cache
+  [^BufferedImage img char-map]
+  (reify ARenderCache
+    (get-char [_ c]
+      (let [{x :x-pos, w :width, h :height} (get char-map c)]
+        (.getSubimage img x 0 w h)))))
 
 (defn char-size
   "Given a font and a char return a map containing :width and :height properties."
@@ -26,7 +36,7 @@
       {:width  (max 1 (.charWidth metrics c))
        :height (if (<= (.getHeight metrics) 0) (.getSize font) (.getHeight metrics))})))
 
-(defn char-image
+(defn render-char
   "Given a font and a char, return a BufferedImage depicting c in font."
   [font c & anti-alias?]
   (when c
@@ -49,6 +59,8 @@
      (println '~form "=>" res#)
      res#))
 
+;; TODO: This could be done more efficiently, but it works as is, and
+;; is probably fast enough. 
 (defn create-render-cache
   "Render all the characters into an image and return that image."
   [font chars & anti-alias?]
@@ -57,21 +69,22 @@
                                                  {:width (+ w1 w2)
                                                   :height (max h1 h2)})
                                                (map #(char-size font % anti-alias?) chars))
-        img (BufferedImage. width height  BufferedImage/TYPE_INT_ARGB)
-        gfx (.getGraphics img)]
+        cache-img (BufferedImage. width height  BufferedImage/TYPE_INT_ARGB)
+        gfx (.getGraphics cache-img)]
 
     (doto gfx
       (.setColor (Color. 255 255 255 1))
       (.fillRect 0 0 width height))
 
-    (loop [char (char-image font (first (seq chars)) anti-alias?)
-           chars (rest (seq chars))
-           x-pos 0]
-
-      (when-not (nil? char)
-        (.drawImage gfx char x-pos 0 nil)
-        (recur (char-image font (first chars) anti-alias?)
-               (rest chars)
-               (+ x-pos (.getWidth char)))))
-
-    img))
+    ;; Render each char into the cache image while maintaining the
+    ;; information about where in that image the char can be found.
+    (loop [[char & chars] chars, char-map {}, x-pos 0]
+      (if (nil? char)
+        (make-buffered-image-cache cache-img char-map)
+        (let [rendered-char (render-char font char anti-alias?)]
+          (.drawImage gfx rendered-char x-pos 0 nil)
+          (recur chars
+                 (assoc char-map char {:x-pos x-pos
+                                       :width (.getWidth rendered-char)
+                                       :height (.getHeight rendered-char)})
+                 (+ x-pos (.getWidth rendered-char))))))))
