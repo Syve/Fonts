@@ -13,7 +13,10 @@
   ([]
      (seq (.getAllFonts (GraphicsEnvironment/getLocalGraphicsEnvironment)))))
 
-
 (defn write-image
   [img filename]
   (ImageIO/write img "png" (io/as-file filename)))
+
+(defn render-text
+  [font text filename]
+  (write-image (render font text) filename))

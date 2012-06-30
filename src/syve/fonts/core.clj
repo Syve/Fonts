@@ -1,9 +1,14 @@
 (ns syve.fonts.core
   (:import [java.awt.image BufferedImage]
+           [java.awt.geom AffineTransform]
            [java.awt
             Font FontMetrics
             Graphics2D RenderingHints
             Color]))
+
+(def ^:dynamic *alphabet*
+  "This is the set of characters used by the fonts."
+  (apply str (map char (range 32 126))))
 
 (defprotocol AFont
   (width [this str] "Get the rendered width of the given string.")
@@ -88,3 +93,25 @@
                                        :width (.getWidth rendered-char)
                                        :height (.getHeight rendered-char)})
                  (+ x-pos (.getWidth rendered-char))))))))
+
+(defn make-font
+  [^Font fnt size & anti-alias?]
+  (let [font (.deriveFont fnt (float size))
+        cache (create-render-cache font *alphabet* anti-alias?)]
+    (reify AFont
+      (width [_ s]
+        (reduce + (map #(.getWidth %) (map #(get-char cache %) s))))
+      (height [_ s]
+        (reduce max (map #(.getHeight %) (map #(get-char cache %) s))))
+      (line-height [_] (.getHeight font))
+      (render ^BufferedImage [this s]
+        (let [img (BufferedImage. (width this s) (height this s) BufferedImage/TYPE_INT_ARGB)
+              gfx (.createGraphics img)]
+
+          (loop [x 0, y 0 [c & chars] s]
+            (if (nil? c)
+              img
+              (do (.drawRenderedImage gfx
+                                      (get-char cache c)
+                                      (AffineTransform/getTranslateInstance x y))
+                  (recur (+ x (.getWidth (get-char cache c))) y chars)))))))))

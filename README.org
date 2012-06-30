@@ -1,12 +1,10 @@
 * syve.fonts
 
-I'm an app. Or maybe I'm a library? I haven't decided yet. 
-
-The choice is up to you!
+Render TrueType fonts into OpenGL textures.
 
 ** Usage
 
-FIXME
+Unspecified as of yet.
 
 ** License
 
